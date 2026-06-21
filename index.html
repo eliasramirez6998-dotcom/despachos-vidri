@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Torre de Control · Dashboard de Despachos — Almacenes Vidrí</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --red:#D5202A; --red-dark:#9E1B22; --red-deep:#7A1419;
+  --ink:#1c2530; --muted:#6b7886; --line:#e7eaef; --bg:#f4f6f9; --card:#ffffff;
+  --green:#1f9d6b; --amber:#f2a900; --blue:#1f6fb2; --orange:#e8743b;
+  --teal:#15a0a6; --purple:#7a4db0; --slate:#64748b; --rose:#d5202a;
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.45}
+h1,h2,h3,.df{font-family:'Archivo',sans-serif}
+.wrap{max-width:1320px;margin:0 auto;padding:0 22px 60px}
+
+/* Top bar */
+.topbar{background:linear-gradient(100deg,var(--red-deep),var(--red) 60%,#e23b2c);color:#fff;padding:16px 0 14px;box-shadow:0 6px 22px rgba(122,20,25,.28)}
+.topbar .wrap{padding-top:0;padding-bottom:0;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:13px}
+.logo{width:46px;height:46px;border-radius:11px;background:#fff;display:grid;place-items:center;flex:0 0 auto;box-shadow:0 4px 12px rgba(0,0,0,.18)}
+.logo b{font-family:'Archivo';font-weight:900;color:var(--red);font-size:23px;letter-spacing:-1px}
+.brand .t1{font-family:'Archivo';font-weight:800;font-size:19px;letter-spacing:.2px;line-height:1.05}
+.brand .t2{font-size:11.5px;opacity:.86;letter-spacing:2.5px;text-transform:uppercase;font-weight:600}
+.topbar .spacer{flex:1}
+.btn{border:0;cursor:pointer;font-family:'IBM Plex Sans';font-weight:600;font-size:13px;border-radius:9px;padding:9px 14px;display:inline-flex;align-items:center;gap:7px;transition:.15s;white-space:nowrap}
+.btn-ghost{background:rgba(255,255,255,.16);color:#fff}
+.btn-ghost:hover{background:rgba(255,255,255,.28)}
+.btn-pub{background:#fff;color:var(--red-dark)}
+.btn-pub:hover{background:#ffe9ea}
+.btn svg{width:15px;height:15px}
+
+/* Publish modal */
+#pubBack{position:fixed;inset:0;background:rgba(16,24,40,.5);display:none;place-items:center;z-index:200;padding:18px}
+#pubBack.on{display:grid}
+.pub-card{background:#fff;border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.35);width:min(460px,100%);max-height:92vh;overflow:auto;padding:24px}
+.pub-card h3{font-family:'Archivo';font-size:19px;color:var(--ink);margin-bottom:4px}
+.pub-card .sub{font-size:12.5px;color:var(--muted);margin-bottom:16px;line-height:1.5}
+.pub-f{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.pub-f label{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+.pub-f input{font-family:'IBM Plex Sans';font-size:13.5px;border:1.5px solid var(--line);border-radius:9px;padding:9px 11px;color:var(--ink);background:#fff;outline:none;transition:.15s}
+.pub-f input:focus{border-color:var(--red)}
+.pub-row{display:flex;gap:10px}.pub-row .pub-f{flex:1}
+.pub-actions{display:flex;gap:10px;margin-top:6px}
+.pub-actions .btn{flex:1;justify-content:center;padding:11px}
+.btn-primary{background:var(--red);color:#fff}.btn-primary:hover{background:var(--red-dark)}
+.btn-soft{background:#f0f2f5;color:var(--ink);border:1.5px solid var(--line)}
+#pubMsg{font-size:12.5px;font-weight:600;margin-top:12px;min-height:18px;line-height:1.45}
+#pubMsg.ok{color:var(--green)}#pubMsg.err{color:var(--red)}#pubMsg.info{color:var(--blue)}
+.pub-hint{font-size:11.5px;color:var(--muted);margin-top:14px;border-top:1px solid var(--line);padding-top:12px;line-height:1.5}
+.pub-hint a{color:var(--red-dark);font-weight:600}
+
+/* Filters */
+.filters{background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:14px 18px;margin:22px 0;display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fg label{font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+.fg input,.fg select{font-family:'IBM Plex Sans';font-size:13.5px;border:1.5px solid var(--line);border-radius:9px;padding:8px 11px;color:var(--ink);background:#fff;min-width:150px;outline:none;transition:.15s}
+.fg input:focus,.fg select:focus{border-color:var(--red)}
+.btn-clear{background:#f0f2f5;color:var(--ink);border:1.5px solid var(--line)}
+.btn-clear:hover{background:#e7eaef}
+.fcount{margin-left:auto;font-size:13px;color:var(--muted);font-weight:600}
+.fcount b{color:var(--red);font-family:'Archivo';font-weight:800;font-size:16px}
+
+/* Hero */
+.hero{background:radial-gradient(120% 140% at 88% 0%,#e6402f 0%,var(--red) 36%,var(--red-dark) 78%,var(--red-deep) 100%);color:#fff;border-radius:18px;padding:26px 30px;position:relative;overflow:hidden;box-shadow:0 12px 30px rgba(122,20,25,.3);margin-bottom:22px}
+.hero::after{content:"";position:absolute;right:-60px;top:-60px;width:280px;height:280px;border-radius:50%;background:rgba(255,255,255,.07)}
+.hero::before{content:"";position:absolute;right:90px;bottom:-90px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,.05)}
+.hero-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:26px;align-items:center;position:relative;z-index:2}
+.badge{display:inline-flex;align-items:center;gap:7px;background:var(--amber);color:#3d2c00;font-weight:800;font-size:11.5px;letter-spacing:.4px;padding:6px 12px;border-radius:30px;font-family:'Archivo'}
+.hero h2{font-size:34px;font-weight:900;letter-spacing:-.6px;margin:14px 0 4px}
+.hero .sub{font-size:13px;opacity:.92;max-width:460px;line-height:1.5}
+.hero .big{display:flex;align-items:baseline;gap:6px;margin-top:6px}
+.hero .big .num{font-family:'Archivo';font-weight:900;font-size:74px;line-height:.9;letter-spacing:-2px}
+.hero .big .pct{font-size:30px;font-weight:800;opacity:.9}
+.hero .big-cap{font-size:12.5px;opacity:.9;margin-top:8px}
+.trend-box{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:15px 17px;backdrop-filter:blur(2px)}
+.trend-box .th{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;font-weight:700;opacity:.9;margin-bottom:6px}
+.trend-box .cwrap{height:120px}
+
+/* Sections */
+.section{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:22px 24px;margin-bottom:22px;border:1px solid #eef1f5}
+.sec-head{display:flex;align-items:center;gap:13px;margin-bottom:4px}
+.sec-ic{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;font-size:21px;flex:0 0 auto}
+.sec-head h3{font-size:20px;font-weight:800;letter-spacing:-.3px}
+.sec-head .desc{font-size:12.5px;color:var(--muted)}
+.divider{height:1px;background:var(--line);margin:16px 0 18px}
+.subhead{font-size:11.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink);margin:6px 0 14px;display:flex;align-items:center;gap:9px}
+.subhead::before{content:"";width:4px;height:15px;background:var(--red);border-radius:2px}
+/* ════════════════════════════════════════════════════════════════
+   SUB-SECCIONES (1.A, 1.B, 1.C) — contenedores con jerarquía visual
+   propia para evitar el "pegado" de hileras de tarjetas.
+═══════════════════════════════════════════════════════════════════ */
+.subsection{background:#fafbfd;border:1px solid #eef1f5;border-radius:14px;padding:20px 22px;margin-bottom:16px;transition:.18s}
+.subsection:last-child{margin-bottom:0}
+.subsection:hover{background:#f6f8fb}
+.subsection-head{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+.subsection-num{display:grid;place-items:center;width:44px;height:44px;border-radius:11px;background:linear-gradient(135deg,#D5202A,#9E1B22);color:#fff;font-family:'Archivo';font-weight:900;font-size:18px;flex:0 0 auto;box-shadow:0 4px 12px rgba(213,32,42,.28);letter-spacing:-.5px}
+.subsection-titles h4{font-family:'Archivo';font-weight:800;font-size:17.5px;letter-spacing:-.3px;margin:0 0 3px;line-height:1.15;color:var(--ink)}
+.subsection-titles .desc{font-size:12.5px;color:var(--muted);font-weight:500;letter-spacing:0;text-transform:none}
+.subsection .chart-t{margin-top:10px}
+
+/* Stat cards */
+.stats{display:grid;gap:14px;margin-bottom:6px}
+.stats.c3{grid-template-columns:repeat(3,1fr)}
+.stats.c4{grid-template-columns:repeat(4,1fr)}.stats.c5{grid-template-columns:repeat(5,1fr)}
+.stat{border-radius:13px;padding:16px 17px;background:#fbfcfd;border:1px solid var(--line);position:relative;overflow:hidden}
+.stat .bar{position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:0 4px 4px 0}
+.stat .k{font-size:10.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:7px;line-height:1.3}
+.stat .v{font-family:'Archivo';font-weight:800;font-size:30px;letter-spacing:-1px;line-height:1}
+.stat .v small{font-size:15px;font-weight:600;color:var(--muted);letter-spacing:0}
+.stat .s{font-size:11.5px;color:var(--muted);margin-top:6px}
+.stat.tone-g .v{color:var(--green)} .stat.tone-g .bar{background:var(--green)}
+.stat.tone-r .v{color:var(--red)} .stat.tone-r .bar{background:var(--red)}
+.stat.tone-a .v{color:#c98800} .stat.tone-a .bar{background:var(--amber)}
+.stat.tone-b .v{color:var(--blue)} .stat.tone-b .bar{background:var(--blue)}
+.stat.tone-s .v{color:var(--slate)} .stat.tone-s .bar{background:var(--slate)}
+.stat.tone-o .v{color:var(--orange)} .stat.tone-o .bar{background:var(--orange)}
+.stat.tone-p .v{color:var(--purple)} .stat.tone-p .bar{background:var(--purple)}
+
+/* Chart layouts */
+.grid2{display:grid;grid-template-columns:.8fr 1.2fr;gap:24px;align-items:center}
+.grid2b{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:center}
+.chart-t{text-align:center;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:8px}
+.cbox{position:relative}
+.cbox.h260{height:260px}.cbox.h300{height:300px}.cbox.h340{height:340px}.cbox.h380{height:380px}.cbox.h420{height:420px}
+.legend-side{display:flex;flex-direction:column;gap:8px;justify-content:center}
+.li{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink)}
+.li .dot{width:12px;height:12px;border-radius:3px;flex:0 0 auto}
+.li .ln{flex:1}.li .lv{font-weight:700;font-family:'Archivo'}
+
+/* leaderboard */
+.leaderboard{display:flex;flex-direction:column;gap:7px}
+.lbrow{display:grid;grid-template-columns:46px 1fr 120px 116px 84px 110px;align-items:center;gap:13px;padding:9px 14px;border-radius:11px;background:#fbfcfd;border:1px solid var(--line);transition:.15s}
+.lbrow:hover{background:#fff;box-shadow:var(--shadow);transform:translateX(2px)}
+.lbrank{font-family:'Archivo';font-weight:800;font-size:16px;color:var(--muted);text-align:center;width:34px;height:34px;line-height:34px;border-radius:9px;background:#eef1f5;justify-self:center}
+.lbrow.top1 .lbrank{background:linear-gradient(135deg,#f7c948,#e1a200);color:#5a3e00}
+.lbrow.top2 .lbrank{background:linear-gradient(135deg,#d7dde3,#aeb8c2);color:#3a434d}
+.lbrow.top3 .lbrank{background:linear-gradient(135deg,#e0a878,#c07b45);color:#4a2c12}
+.lbname{font-weight:600;font-size:13.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lbname .sub{display:block;font-size:11px;color:var(--muted);font-weight:500}
+.lbbar-wrap{height:11px;background:#eef1f5;border-radius:6px;overflow:hidden}
+.lbbar{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--red),#e8743b)}
+.lbnum{text-align:right;font-family:'Archivo';font-weight:800;font-size:16px;color:var(--ink)}
+.lbnum small{display:block;font-size:10.5px;color:var(--muted);font-weight:600;font-family:'IBM Plex Sans'}
+.lbmonto{text-align:right;font-family:'Archivo';font-weight:800;font-size:16px;color:var(--green)}
+.lbmonto small{display:block;font-size:10.5px;color:var(--muted);font-weight:600;font-family:'IBM Plex Sans'}
+.lbavg{text-align:right;font-family:'Archivo';font-weight:800;font-size:16px;color:#1B4F8B}
+.lbavg small{display:block;font-size:10.5px;color:var(--muted);font-weight:600;font-family:'IBM Plex Sans'}
+.lbhead{display:grid;grid-template-columns:46px 1fr 120px 116px 84px 110px;gap:13px;padding:0 14px 4px;font-size:10.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
+.lbhead span:nth-child(3){text-align:left}.lbhead span:nth-child(4),.lbhead span:nth-child(5),.lbhead span:nth-child(6){text-align:right}
+@media(max-width:920px){.lbrow,.lbhead{grid-template-columns:38px 1fr 100px 80px 100px}.lbbar-wrap,.lbhead span:nth-child(3){display:none}}
+.note{font-size:11.5px;color:var(--muted);font-style:italic;margin-top:10px}
+/* segmented cycle bar */
+.segbar{display:flex;height:54px;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.segbar .seg{display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:'Archivo';font-weight:800;font-size:16px;min-width:0;padding:0 6px;line-height:1.1}
+.segbar .seg small{font-weight:600;font-size:10.5px;opacity:.95;font-family:'IBM Plex Sans';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.seglegend{display:flex;gap:20px;margin-top:11px;flex-wrap:wrap}
+.seglegend .li{font-size:12.5px}
+.insight{display:flex;gap:10px;align-items:flex-start;margin-top:14px;padding:12px 15px;background:#fdf4ec;border:1px solid #f6dcc6;border-radius:11px;font-size:13px;color:#7a3e12;line-height:1.5}
+.insight b{color:#9E1B22}
+.insight .ic{font-size:16px;flex:0 0 auto}
+.foot{text-align:center;color:var(--muted);font-size:12px;margin-top:30px;line-height:1.7}
+.foot b{color:var(--red)}
+
+/* loading */
+#overlay{position:fixed;inset:0;background:rgba(255,255,255,.92);display:none;place-items:center;z-index:99;flex-direction:column;gap:14px}
+#overlay.on{display:grid}
+.spin{width:46px;height:46px;border:4px solid var(--line);border-top-color:var(--red);border-radius:50%;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+#overlay p{font-weight:600;color:var(--ink)}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(120px);background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;font-size:13.5px;font-weight:600;z-index:120;transition:.3s;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.toast.on{transform:translateX(-50%) translateY(0)}
+@media(max-width:920px){.hero-grid,.grid2,.grid2b{grid-template-columns:1fr}.stats.c4,.stats.c3{grid-template-columns:1fr 1fr}.hero .big .num{font-size:56px}}
+</style>
+</head>
+<body>
+<div id="overlay"><div class="spin"></div><p id="ovtext">Procesando datos…</p></div>
+<div id="toast" class="toast"></div>
+
+<div id="pubBack">
+  <div class="pub-card">
+    <h3>Publicar dashboard</h3>
+    <div class="sub">Sube el <b>data.js</b> actual a tu repositorio de GitHub. Netlify lo republica solo y todos los usuarios ven los datos nuevos en ~1&nbsp;minuto.</div>
+    <div class="pub-row">
+      <div class="pub-f"><label>Usuario / Org GitHub</label><input id="pgOwner" placeholder="ej. eramirez-vidri" autocomplete="off"></div>
+      <div class="pub-f"><label>Repositorio</label><input id="pgRepo" placeholder="ej. dashboard-despachos" autocomplete="off"></div>
+    </div>
+    <div class="pub-row">
+      <div class="pub-f"><label>Rama</label><input id="pgBranch" placeholder="main" autocomplete="off"></div>
+      <div class="pub-f"><label>Archivo</label><input id="pgPath" placeholder="data.js" autocomplete="off"></div>
+    </div>
+    <div class="pub-f"><label>Token de acceso (fine-grained)</label><input id="pgToken" type="password" placeholder="github_pat_..." autocomplete="off"></div>
+    <div class="pub-actions">
+      <button class="btn btn-soft" id="pgClose">Cerrar</button>
+      <button class="btn btn-primary" id="pgGo">Guardar y publicar</button>
+    </div>
+    <div id="pubMsg"></div>
+    <div class="pub-hint">El token se guarda solo en <b>este navegador</b> (no se comparte). Usa un token <b>fine-grained</b> limitado a este repositorio, con permiso <b>Contents: Read and write</b>. <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener">Crear token →</a></div>
+  </div>
+</div>
+
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand">
+      <div class="logo"><b>V</b></div>
+      <div>
+        <div class="t1">ALMACENES VIDRÍ</div>
+        <div class="t2">Torre de Control · Despachos</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn btn-ghost" id="btnUpdate">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+      Actualizar data
+    </button>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.xlsb" style="display:none">
+    <button class="btn btn-ghost" id="btnDownload">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 17V5m0 12l4-4m-4 4l-4-4M4 19h16"/></svg>
+      Descargar data corregida
+    </button>
+    <button class="btn btn-pub" id="btnPublish">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5m0 0l-6 6m6-6l6 6M5 3h14"/></svg>
+      Publicar
+    </button>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- FILTERS -->
+  <div class="filters">
+    <div class="fg"><label>Desde</label><input type="date" id="fDesde"></div>
+    <div class="fg"><label>Hasta</label><input type="date" id="fHasta"></div>
+    <div class="fg"><label>Sucursal</label><select id="fSuc"></select></div>
+    <div class="fg"><label>Canal</label><select id="fCanal"></select></div>
+    <button class="btn btn-clear" id="btnClear">Limpiar filtros</button>
+    <div class="fcount"><b id="cValid">0</b> despachos válidos en el rango</div>
+  </div>
+
+  <!-- HERO OTIF -->
+  <div class="hero">
+    <div class="hero-grid">
+      <div>
+        <span class="badge">★ KPI más importante del área</span>
+        <h2>OTIF · On Time In Full</h2>
+        <div class="sub">Despachos entregados <b>en 1–3 días</b>.</div>
+        <div class="big"><span class="num" id="otifNum">0</span><span class="pct">%</span></div>
+        <div class="big-cap" id="otifCap">0 en tiempo y Entregados completos / 0 totales</div>
+      </div>
+      <div class="trend-box">
+        <div class="th">Tendencia mensual · meta 90%</div>
+        <div class="cwrap"><canvas id="chTrend"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 1 -->
+  <div class="section">
+    <div class="sec-head"><div class="sec-ic" style="background:#fdeaea">🚚</div>
+      <div><h3>1. Cumplimiento de Entregas</h3><div class="desc">Componentes del OTIF · Puntual y completo</div></div></div>
+    <div class="subsection">
+      <div class="subsection-head">
+        <div class="subsection-num">A</div>
+        <div class="subsection-titles">
+          <h4>Entregas a tiempo</h4>
+          <div class="desc">Estatus 72h</div>
+        </div>
+      </div>
+      <div class="stats c3" id="punctCards"></div>
+      <div class="grid2" style="margin-top:18px">
+        <div><div class="chart-t">Puntualidad de entregas</div><div class="cbox h260"><canvas id="chPunct"></canvas></div></div>
+        <div><div class="chart-t">Puntualidad por sucursal</div><div class="cbox h340"><canvas id="chPunctSuc"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-head">
+        <div class="subsection-num">B</div>
+        <div class="subsection-titles">
+          <h4>Entregas completas · In Full</h4>
+          <div class="desc">(completa vs parcial)</div>
+        </div>
+      </div>
+      <div class="stats c3" id="inFullCards"></div>
+      <div class="chart-t" style="margin-top:22px">Tendencia mensual del In Full · meta 95%</div>
+      <div class="cbox h260"><canvas id="chInFullTrend"></canvas></div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-head">
+        <div class="subsection-num">C</div>
+        <div class="subsection-titles">
+          <h4>Cumplimiento operativo</h4>
+          <div class="desc"></div>
+        </div>
+      </div>
+      <div class="stats c4" id="opCards"></div>
+      <div class="grid2" style="margin-top:18px">
+        <div><div class="chart-t">Distribución del cumplimiento operativo</div><div class="cbox h260"><canvas id="chOp"></canvas></div></div>
+        <div><div class="chart-t">Sucursales con mayor pendiente de gestión</div><div class="cbox h340"><canvas id="chPend"></canvas></div></div>
+      </div>
+      <div class="chart-t" style="margin-top:22px">Tendencia de documentos pendientes de gestión · por mes (Pendiente + NO GESTIONADO)</div>
+      <div class="cbox h260"><canvas id="chPendTrend"></canvas></div>
+    </div>
+  </div>
+
+  <!-- SECTION 2 -->
+  <div class="section">
+    <div class="sec-head"><div class="sec-ic" style="background:#fef4dc">📦</div>
+      <div><h3>2. Productividad Operativa</h3><div class="desc">Volumen y eficiencia del despacho</div></div></div>
+    <div class="divider"></div>
+    <div class="stats c4" id="prodCards"></div>
+    <div class="subhead" style="margin-top:18px">Pedidos despachados por día</div>
+    <div class="cbox h340"><canvas id="chDaily"></canvas></div>
+    <div class="grid2b" style="margin-top:20px">
+      <div><div class="chart-t">Entregas por motorista (top 15)</div><div class="cbox h380"><canvas id="chMot"></canvas></div></div>
+      <div><div class="chart-t">Pedidos por sucursal</div><div class="cbox h380"><canvas id="chSucVol"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- SECTION 3 -->
+  <div class="section">
+    <div class="sec-head"><div class="sec-ic" style="background:#e7f0fb">⏱️</div>
+      <div><h3>3. Tiempos de Operación</h3><div class="desc">Lead times del ciclo · Venta → Bodega → Transporte → Cliente</div></div></div>
+    <div class="divider"></div>
+    <div class="grid2b">
+      <div class="stats" style="grid-template-columns:1fr 1fr;gap:14px" id="timeCards"></div>
+      <div><div class="chart-t">Lead times (días) por sucursal · apilado por etapa</div><div class="cbox h380"><canvas id="chLead"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- SECTION 4 -->
+  <div class="section">
+    <div class="sec-head"><div class="sec-ic" style="background:#fde8ee">❌</div>
+      <div><h3>4. Incidencias y Calidad</h3><div class="desc">Análisis de fallas y motivos de no conformidad</div></div></div>
+    <div class="divider"></div>
+    <div class="stats c5" id="incCards"></div>
+    <div class="subhead" style="margin-top:18px">Motivos de falla (subestados de DispatchTrack)</div>
+    <div class="cbox h420"><canvas id="chMotivos"></canvas></div>
+    <div class="divider"></div>
+    <div class="subhead">Intentos de entrega · ¿en cuántos intentos se logró entregar?</div>
+    <div class="grid2b">
+      <div class="stats" style="grid-template-columns:1fr 1fr;gap:14px" id="intentosCards"></div>
+      <div><div class="chart-t">Documentos entregados según número de intento</div><div class="cbox h300"><canvas id="chIntentos"></canvas></div></div>
+    </div>
+    <div class="note" id="intentosNote"></div>
+  </div>
+
+  <!-- SECTION 5 -->
+  <div class="section">
+    <div class="sec-head"><div class="sec-ic" style="background:#efeafa">🏆</div>
+      <div><h3>5. Top 20 Clientes por Monto Despachado</h3><div class="desc">Clientes con mayor valor despachado en el período seleccionado</div></div></div>
+    <div class="divider"></div>
+    <div class="stats c4" id="cliCards"></div>
+    <div class="leaderboard" id="cliBoard" style="margin-top:18px"></div>
+  </div>
+
+  <div class="foot">
+    <b>Almacenes Vidrí</b> · Torre de Control de Despachos &nbsp;|&nbsp; Dashboard alimentado por el reporte VGO + DispatchTrack (cruce por documento + sucursal, corregido)<br>
+    Usa <b>Actualizar data</b> para ingresar un nuevo período (ej. mayo) y <b>Descargar data corregida</b> para exportar la base con las correcciones que ves aquí.
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
