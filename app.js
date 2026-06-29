@@ -57,16 +57,36 @@ function render(){
 function mkChart(id,cfg){if(charts[id])charts[id].destroy();charts[id]=new Chart($(id),cfg);}
 
 /* ===== HERO / OTIF ===== */
+function mondayOf(d){const dt=new Date(d+'T00:00:00Z');const wd=(dt.getUTCDay()+6)%7;dt.setUTCDate(dt.getUTCDate()-wd);return dt.toISOString().slice(0,10);}
+/* granularidad adaptativa: ≤9 días→día, ≤45 días→semana, más→mes */
+function trendBuckets(R){
+  let mn='',mx='';
+  for(const r of R){const g=r[0]||r[1]; if(!g)continue; const d=g.slice(0,10); if(!mn||d<mn)mn=d; if(d>mx)mx=d;}
+  const spanDays=mn?Math.round((Date.parse(mx)-Date.parse(mn))/864e5)+1:0;
+  const gran=spanDays<=9?'day':(spanDays<=45?'week':'month');
+  let keyOf,label;
+  if(gran==='month'){
+    keyOf=g=>g.slice(0,7);
+    label=k=>{const[y,mo]=k.split('-');let l=MES[+mo-1]+' '+y.slice(2);const dim=new Date(Date.UTC(+y,+mo,0)).getUTCDate(),dd=+mx.slice(8,10);if(k===mx.slice(0,7)&&dd<dim)l+=' (al '+dd+')';return l;};
+  }else if(gran==='day'){
+    keyOf=g=>g.slice(0,10);
+    label=k=>(+k.slice(8,10))+' '+MES[+k.slice(5,7)-1];
+  }else{
+    keyOf=g=>mondayOf(g.slice(0,10));
+    label=k=>'Sem '+(+k.slice(8,10))+' '+MES[+k.slice(5,7)-1];
+  }
+  const keys=[...new Set(R.map(r=>{const g=r[0]||r[1];return g?keyOf(g):'';}).filter(Boolean))].sort();
+  return {gran,keyOf,label,keys,mx};
+}
 function renderHero(R){
   const N=R.length;
   const otif=R.filter(r=>r[6]===1 && r[8]==='Entregado').length;
   $('otifNum').textContent=pct(otif,N).toFixed(1);
   $('otifCap').textContent=`${fmt(otif)} en tiempo y Entregados completos / ${fmt(N)} totales`;
   // tendencia: OTIF ACUMULADO, corte a fin de mes (mes en curso = hasta el último día con registros)
-  const months=[...new Set(R.map(r=>{const g=r[0]||r[1];return g?g.slice(0,7):'';}).filter(Boolean))].sort();
-  let maxDate=''; for(const r of R){const g=r[0]||r[1]; if(g&&g>maxDate)maxDate=g;}
-  const labels=months.map(mk=>{const[y,mo]=mk.split('-');let l=MES[+mo-1]+' '+y.slice(2);const dim=new Date(Date.UTC(+y,+mo,0)).getUTCDate(),dd=+maxDate.slice(8,10);if(mk===months[months.length-1]&&maxDate.slice(0,7)===mk&&dd<dim)l+=' (al '+dd+')';return l;});
-  const vals=months.map(mk=>{let nu=0,de=0;for(const r of R){const g=r[0]||r[1];if(!g)continue;if(g.slice(0,7)<=mk){de++;if(r[6]===1&&r[8]==='Entregado')nu++;}}return +pct(nu,de).toFixed(1);});
+  const tb=trendBuckets(R);
+  const labels=tb.keys.map(tb.label);
+  const vals=tb.keys.map(bk=>{let nu=0,de=0;for(const r of R){const g=r[0]||r[1];if(!g)continue;if(tb.keyOf(g)<=bk){de++;if(r[6]===1&&r[8]==='Entregado')nu++;}}return +pct(nu,de).toFixed(1);});
   mkChart('chTrend',{type:'line',data:{labels,datasets:[
     {data:vals,borderColor:'#fff',backgroundColor:'rgba(255,255,255,.18)',fill:true,tension:.35,pointBackgroundColor:'#ffd84d',pointBorderColor:'#fff',pointRadius:4,borderWidth:2.5},
     {data:labels.map(()=>90),borderColor:'rgba(255,255,255,.55)',borderDash:[5,4],pointRadius:0,borderWidth:1.5}
@@ -123,19 +143,20 @@ function renderSec1(R){
     return {title:'Pendientes de gestión · '+(z[0]||'(Sin zona)'),rows:R.filter(r=>(r[8]==='Pendiente'||r[8]==='NO GESTIONADO'||r[8]==='Pendiente de entrega')&&r[3]===z[2])};});
   // tendencia mensual de pendientes de gestión (Pendiente + NO GESTIONADO)
   const isPend=r=>r[8]==='Pendiente'||r[8]==='NO GESTIONADO'||r[8]==='Pendiente de entrega';
+  const ptb=trendBuckets(R);
   const pgBy={};
-  for(const r of R){const g=r[0]||r[1];if(!g)continue;const k=g.slice(0,7);if(!pgBy[k])pgBy[k]=[0,0];pgBy[k][1]++;if(isPend(r))pgBy[k][0]++;}
-  const pgk=Object.keys(pgBy).sort();
-  const pgLabels=pgk.map(k=>{const[y,m]=k.split('-');return MES[+m-1]+' '+y.slice(2);});
-  const pgVals=pgk.map(k=>pgBy[k][0]);
-  const pgPct=pgk.map(k=>+pct(pgBy[k][0],pgBy[k][1]).toFixed(1));
+  for(const r of R){const g=r[0]||r[1];if(!g)continue;const k=ptb.keyOf(g);if(!pgBy[k])pgBy[k]=[0,0];pgBy[k][1]++;if(isPend(r))pgBy[k][0]++;}
+  const pgk=ptb.keys;
+  const pgLabels=pgk.map(ptb.label);
+  const pgVals=pgk.map(k=>pgBy[k]?pgBy[k][0]:0);
+  const pgPct=pgk.map(k=>pgBy[k]?+pct(pgBy[k][0],pgBy[k][1]).toFixed(1):0);
   mkChart('chPendTrend',{type:'line',data:{labels:pgLabels,datasets:[
     {data:pgVals,borderColor:PAL.amber,backgroundColor:'rgba(242,169,0,.15)',fill:true,tension:.35,pointRadius:5,pointBackgroundColor:PAL.amber,pointBorderColor:'#fff',pointBorderWidth:2,borderWidth:3}
   ]},options:{maintainAspectRatio:false,plugins:{legend:{display:false},
-    tooltip:{callbacks:{label:c=>c.parsed.y.toLocaleString('es-SV')+' pendientes · '+pgPct[c.dataIndex]+'% del mes'}}},
+    tooltip:{callbacks:{label:c=>c.parsed.y.toLocaleString('es-SV')+' pendientes · '+pgPct[c.dataIndex]+'% del periodo'}}},
     scales:{y:{beginAtZero:true,ticks:{font:{size:11},callback:v=>v.toLocaleString('es-SV')},grid:{color:'#eef1f5'},border:{display:false}},x:{grid:{display:false},ticks:{font:{size:11.5,weight:'600'},color:'#3a4756'}}}}});
   attachDrill('chPendTrend',i=>{const k=pgk[i];if(!k)return null;
-    return {title:'Pendientes de gestión · '+pgLabels[i],rows:R.filter(r=>{const g=r[0]||r[1];return g&&g.slice(0,7)===k&&isPend(r);})};});
+    return {title:'Pendientes de gestión · '+pgLabels[i],rows:R.filter(r=>{const g=r[0]||r[1];return g&&ptb.keyOf(g)===k&&isPend(r);})};});
 
   // 1.C In Full
   const comp=R.filter(r=>r[7]===0).length, par=R.filter(r=>r[7]===1).length;
@@ -146,11 +167,10 @@ function renderSec1(R){
   ].join('');
 
   // 1.B In Full · ACUMULADO con corte a fin de mes (mes en curso = hasta el último día con registros)
-  const fMonths=[...new Set(R.map(r=>{const g=r[0]||r[1];return g?g.slice(0,7):'';}).filter(Boolean))].sort();
-  let fMax=''; for(const r of R){const g=r[0]||r[1]; if(g&&g>fMax)fMax=g;}
-  const fk=fMonths;
-  const fLabels=fMonths.map(mk=>{const[y,mo]=mk.split('-');let l=MES[+mo-1]+' '+y.slice(2);const dim=new Date(Date.UTC(+y,+mo,0)).getUTCDate(),dd=+fMax.slice(8,10);if(mk===fMonths[fMonths.length-1]&&fMax.slice(0,7)===mk&&dd<dim)l+=' (al '+dd+')';return l;});
-  const fVals=fMonths.map(mk=>{let nu=0,de=0;for(const r of R){const g=r[0]||r[1];if(!g)continue;if(g.slice(0,7)<=mk){de++;if(r[7]===0)nu++;}}return +pct(nu,de).toFixed(1);});
+  const ftb=trendBuckets(R);
+  const fk=ftb.keys;
+  const fLabels=ftb.keys.map(ftb.label);
+  const fVals=ftb.keys.map(bk=>{let nu=0,de=0;for(const r of R){const g=r[0]||r[1];if(!g)continue;if(ftb.keyOf(g)<=bk){de++;if(r[7]===0)nu++;}}return +pct(nu,de).toFixed(1);});
   mkChart('chInFullTrend',{type:'line',data:{labels:fLabels,datasets:[
     {label:'% In Full',data:fVals,borderColor:PAL.green,backgroundColor:'rgba(31,157,107,.14)',fill:true,tension:.35,pointRadius:5,pointBackgroundColor:PAL.green,pointBorderColor:'#fff',pointBorderWidth:2,borderWidth:3},
     {label:'Meta 95%',data:fLabels.map(()=>95),borderColor:PAL.amber,borderDash:[6,5],pointRadius:0,borderWidth:1.8}
@@ -159,7 +179,7 @@ function renderSec1(R){
       tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+'%'}}},
     scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%',font:{size:11},stepSize:20},grid:{color:'#eef1f5'},border:{display:false}},x:{grid:{display:false},ticks:{font:{size:11.5,weight:'600'},color:'#3a4756'}}}}});
   attachDrill('chInFullTrend',(i,ds)=>{if(ds===1)return null;const k=fk[i];if(!k)return null;
-    return {title:'In Full acumulado · '+fLabels[i],rows:R.filter(r=>{const g=r[0]||r[1];return g&&g.slice(0,7)<=k;})};});
+    return {title:'In Full acumulado · '+fLabels[i],rows:R.filter(r=>{const g=r[0]||r[1];return g&&ftb.keyOf(g)<=k;})};});
 }
 
 /* ===== SECTION 2 ===== */
@@ -325,10 +345,10 @@ function renderSec5(R){
   const topDesp=top.reduce((p,c)=>p+c[1],0);
   const maxm=top.length?top[0][2]:1;
   $('cliCards').innerHTML=[
-    card('tone-p','Clientes activos en el rango',fmt(clientesActivos),'Con al menos 1 despacho'),
+    card('tone-p','Monto total despachado en el periodo',money(totalMonto),`${fmt(N)} despachos en el rango`),
     card('tone-g','Cliente #1 (por monto)',top.length?money(top[0][2]):'—',top.length?top[0][0]+' · '+fmt(top[0][1])+' despachos':''),
-    card('tone-b','Concentración Top 20',pct(topMonto,totalMonto).toFixed(1)+'<small>%</small>',`${money(topMonto)} del monto total`),
-    card('tone-r','Monto Top 20',money(topMonto),`${fmt(topDesp)} despachos a estos clientes`)
+    card('tone-r','Monto Top 20',money(topMonto),`${fmt(topDesp)} despachos a estos clientes`),
+    card('tone-b','Concentración Top 20',pct(topMonto,totalMonto).toFixed(1)+'<small>%</small>',`${money(topMonto)} del monto total`)
   ].join('');
   let html='<div class="lbhead"><span>#</span><span>Cliente</span><span>Participación ($)</span><span>Monto ($)</span><span>Despachos</span><span>Promedio</span></div>';
   top.forEach((c,i)=>{
